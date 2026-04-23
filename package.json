@@ -1,0 +1,25 @@
+{
+  "name": "timegraph-cloud",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@prisma/config": "^7.8.0",
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@elysiajs/cors": "^1.4.1",
+    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/client": "^7.8.0",
+    "elysia": "^1.4.28",
+    "lib0": "^0.2.117",
+    "pg": "^8.20.0",
+    "prisma": "^7.8.0",
+    "y-protocols": "^1.0.7",
+    "y-websocket": "^3.0.0",
+    "yjs": "^13.6.30"
+  }
+}
