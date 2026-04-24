@@ -42,7 +42,8 @@ model Session {
 model Project {
   id        String   @id @default(uuid())
   name      String
-  data      Json     
+  data      Json
+  yjsState  Bytes?
   
   ownerId   String
   owner     User     @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Cascade)
