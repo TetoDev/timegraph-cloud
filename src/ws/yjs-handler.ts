@@ -13,9 +13,7 @@ const activeProjects = new Map<string, Y.Doc>();
 const activeAwareness = new Map<string, awarenessProtocol.Awareness>();
 const roomClients = new Map<string, Set<any>>();
 
-// Prevents the race condition where two clients connecting simultaneously both
-// pass the cache check before either has finished initializing the doc, which
-// would create two Y.Doc instances with diverging CRDT histories.
+
 const pendingDocs = new Map<string, Promise<{ doc: Y.Doc; awareness: awarenessProtocol.Awareness }>>();
 
 export async function getProjectDoc(projectId: string) {
@@ -34,13 +32,10 @@ export async function getProjectDoc(projectId: string) {
         const project = await db.project.findUnique({ where: { id: projectId } });
         if (project) {
             if (project.yjsState) {
-                // Load the proper Y.js binary CRDT state — preserves the exact history
-                // clients have, so delta updates can always be applied without ambiguity.
+
                 Y.applyUpdate(doc, project.yjsState);
             } else if (project.data) {
-                // Fallback for projects saved before yjsState was introduced.
-                // Plain JSON loading creates fresh CRDT ops; once the project is
-                // saved via WebSocket the proper binary state takes over.
+
                 const state = doc.getMap('state');
                 doc.transact(() => {
                     for (const [key, value] of Object.entries(project.data as Record<string, unknown>)) {
@@ -61,7 +56,7 @@ export async function getProjectDoc(projectId: string) {
             const encoder = encoding.createEncoder();
             encoding.writeVarUint(encoder, MESSAGE_SYNC);
             sync.writeUpdate(encoder, update);
-            // Buffer, not Uint8Array — Elysia's ws.send JSON-stringifies Uint8Array.
+
             const message = Buffer.from(encoding.toUint8Array(encoder));
 
             clients.forEach(client => {
@@ -131,9 +126,7 @@ export const yjsSocketHandler = {
         roomClients.get(projectId)!.add(ws);
 
         getProjectDoc(projectId).then(({ doc, awareness }) => {
-            // Sync step 1 only. Client responds with step 2 containing any ops
-            // server is missing, then sends its own step 1 — server replies via
-            // the message handler. Full bidirectional sync via standard protocol.
+
             const encoder = encoding.createEncoder();
             encoding.writeVarUint(encoder, MESSAGE_SYNC);
             sync.writeSyncStep1(encoder, doc);

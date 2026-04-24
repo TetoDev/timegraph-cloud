@@ -1,13 +1,10 @@
 // src/compute/rust-client.ts
 import type { SimulationRequest, SimulationResponse } from "./types";
 
-// In a cloud setup, this is typically an internal k8s service or env var
 const RUST_ENGINE_URL = process.env.RUST_ENGINE_URL || "http://localhost:8080/compute";
 
 export const RustComputeClient = {
-    /**
-     * Sends project data to the Rust engine and returns the calculated Simogram blocks.
-     */
+
     async calculateSimulation(request: SimulationRequest): Promise<SimulationResponse> {
         try {
             console.log(`🚀 Sending Project ${request.projectId} to Rust Engine...`);
@@ -16,8 +13,8 @@ export const RustComputeClient = {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(request),
-                // Native Bun fetch supports signal for timeouts
-                signal: AbortSignal.timeout(30000) // 30-second compute limit
+
+                signal: AbortSignal.timeout(30000) 
             });
 
             if (!response.ok) {

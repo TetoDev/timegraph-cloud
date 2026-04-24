@@ -1,10 +1,10 @@
 // src/routes/users.ts
 import { Elysia, t } from "elysia";
 import { db } from "../db/client";
-import { authPlugin } from "../auth/plugin"; // 1. Import the plugin
+import { authPlugin } from "../auth/plugin";
 
 export const userRoutes = new Elysia({ prefix: "/api/users" })
-    .use(authPlugin) // 2. Use the plugin to inject 'user' and 'session' types
+    .use(authPlugin) 
     .guard({
         beforeHandle({ user, set }) {
             if (!user) {
@@ -13,9 +13,7 @@ export const userRoutes = new Elysia({ prefix: "/api/users" })
             }
         }
     }, (app) => app
-        // ---------------------------------------------------------
-        // 1. SEARCH USERS
-        // ---------------------------------------------------------
+
         .get("/search", async ({ query: { q }, user }) => {
             if (q.length < 3) return { success: true, users: [] };
 
@@ -46,9 +44,6 @@ export const userRoutes = new Elysia({ prefix: "/api/users" })
             })
         })
 
-        // ---------------------------------------------------------
-        // 2. GET USER PROFILE
-        // ---------------------------------------------------------
         .get("/:id", async ({ params: { id }, set }) => {
             const foundUser = await db.user.findUnique({
                 where: { id },

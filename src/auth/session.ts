@@ -5,7 +5,7 @@ import type { User, Session } from "@prisma/client";
 const SESSION_EXPIRATION_DAYS = 30;
 
 export async function createSession(userId: string): Promise<Session> {
-    // We use the native crypto API to generate a secure, collision-resistant token
+
     const sessionId = crypto.randomUUID(); 
     const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * SESSION_EXPIRATION_DAYS);
     
@@ -32,8 +32,7 @@ export async function validateSession(sessionId: string): Promise<{ user: User |
         return { user: null, session: null };
     }
 
-    // Lucia's "Rolling Session" logic: 
-    // If the session is halfway to expiring, extend it back to 30 days.
+
     const fifteenDays = 1000 * 60 * 60 * 24 * 15;
     if (session.expiresAt.getTime() - Date.now() < fifteenDays) {
         session.expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * SESSION_EXPIRATION_DAYS);

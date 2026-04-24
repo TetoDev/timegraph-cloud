@@ -17,7 +17,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
             
             const session = await createSession(user.id);
             
-            // TypeScript now knows auth_session is not undefined
+
             auth_session.set({
                 value: session.id,
                 httpOnly: true,
@@ -37,7 +37,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
             email: t.String(),
             password: t.String()
         }),
-        // ADD THIS: Define the cookie schema to provide type-safety
+
         cookie: t.Object({
             auth_session: t.Optional(t.String())
         })
@@ -74,7 +74,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
             email: t.String(),
             password: t.String()
         }),
-        // ADD THIS: Same here for the login route
+
         cookie: t.Object({
             auth_session: t.Optional(t.String())
         })
@@ -87,7 +87,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
         }
         return { success: true };
     }, {
-        // ADD THIS: Even for logout to ensure the remove() method is typed
+
         cookie: t.Object({
             auth_session: t.Optional(t.String())
         })

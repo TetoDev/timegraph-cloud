@@ -6,12 +6,10 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  // NO URL HERE IN PRISMA 7!
+
 }
 
-// -----------------------------------------------------------------------------
-// 1. AUTHENTICATION & USERS
-// -----------------------------------------------------------------------------
+
 model User {
   id       String    @id @default(uuid())
   username String    @unique
@@ -36,9 +34,6 @@ model Session {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-// -----------------------------------------------------------------------------
-// 2. PROJECTS & COLLABORATION
-// -----------------------------------------------------------------------------
 model Project {
   id        String   @id @default(uuid())
   name      String
@@ -70,9 +65,6 @@ model ProjectCollaborator {
   @@id([projectId, userId]) 
 }
 
-// -----------------------------------------------------------------------------
-// 3. SHARE GROUPS
-// -----------------------------------------------------------------------------
 model ShareGroup {
   id        String   @id @default(uuid())
   name      String
