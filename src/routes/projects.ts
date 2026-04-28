@@ -1,10 +1,11 @@
 // src/routes/projects.ts
 import { Elysia, t } from "elysia";
 import { db } from "../db/client";
-import { authPlugin } from "../auth/plugin"; 
+import { authPlugin } from "../auth/plugin";
+import { encryptProjectData, decryptProjectData } from "../crypto";
 
 export const projectRoutes = new Elysia({ prefix: "/api/projects" })
-    .use(authPlugin) 
+    .use(authPlugin)
     .guard({
         beforeHandle({ user, set }) {
             if (!user) {
@@ -13,49 +14,86 @@ export const projectRoutes = new Elysia({ prefix: "/api/projects" })
             }
         }
     }, (app) => app
-        
+
         // 1. CREATE NEW CLOUD PROJECT
         .post("/", async ({ body, user }) => {
             const { name, data } = body;
+            const { encryptedData, encryptedDEK, dataIV, deKIV } = encryptProjectData(data);
+
             const project = await db.project.create({
-                data: { name, data, ownerId: user!.id }
+                data: {
+                    name,
+                    data: encryptedData as any,
+                    dataKey: encryptedDEK,
+                    dataIV,
+                    deKIV,
+                    encrypted: true,
+                    ownerId: user!.id,
+                },
             });
             return { success: true, projectId: project.id };
         }, { body: t.Object({ name: t.String(), data: t.Any() }) })
-        
+
         // 2. LIST ALL PROJECTS
         .get("/", async ({ user }) => {
             const dbProjects = await db.project.findMany({
-                where: { OR: [ { ownerId: user!.id }, { collaborators: { some: { userId: user!.id } } } ] },
+                where: { OR: [{ ownerId: user!.id }, { collaborators: { some: { userId: user!.id } } }] },
                 select: {
                     id: true, name: true, updatedAt: true, ownerId: true,
                     owner: { select: { username: true } },
-                    collaborators: { where: { userId: user!.id }, select: { role: true } }
+                    collaborators: { where: { userId: user!.id }, select: { role: true } },
                 },
-                orderBy: { updatedAt: 'desc' }
+                orderBy: { updatedAt: "desc" },
             });
 
-            return { success: true, projects: dbProjects.map(p => ({
-                id: p.id, name: p.name, updatedAt: p.updatedAt,
-                isOwner: p.ownerId === user!.id,
-                ownerName: p.owner?.username || "Unknown",
-                // MAP TO YOUR ENUM:
-                role: p.ownerId === user!.id ? "OWNER" : (p.collaborators[0]?.role || "READ")
-            }))}; 
+            return {
+                success: true,
+                projects: dbProjects.map((p) => ({
+                    id: p.id,
+                    name: p.name,
+                    updatedAt: p.updatedAt,
+                    isOwner: p.ownerId === user!.id,
+                    ownerName: p.owner?.username || "Unknown",
+                    role: p.ownerId === user!.id ? "OWNER" : (p.collaborators[0]?.role || "READ"),
+                })),
+            };
         })
 
         // 3. GET SINGLE PROJECT DATA
         .get("/:id", async ({ params: { id }, user, set }) => {
             const project = await db.project.findUnique({
-                where: { id }, include: { collaborators: true }
+                where: { id },
+                include: { collaborators: true },
             });
 
             if (!project) return (set.status = 404, { success: false, message: "Project not found" });
 
-            const hasAccess = project.ownerId === user!.id || project.collaborators.some(c => c.userId === user!.id);
+            const hasAccess = project.ownerId === user!.id || project.collaborators.some((c) => c.userId === user!.id);
             if (!hasAccess) return (set.status = 403, { success: false, message: "Forbidden" });
 
-            return { success: true, project };
+            let decryptedData = project.data;
+
+            if (project.encrypted && project.dataKey && project.dataIV && project.deKIV) {
+                try {
+                    decryptedData = decryptProjectData(
+                        project.data as string,
+                        project.dataKey,
+                        project.dataIV,
+                        project.deKIV
+                    );
+                } catch (err) {
+                    console.error("[projects] Failed to decrypt project data:", err);
+                    return (set.status = 500, { success: false, message: "Failed to decrypt project data" });
+                }
+            }
+
+            return {
+                success: true,
+                project: {
+                    ...project,
+                    data: decryptedData,
+                },
+            };
         })
 
         // 4. RENAME PROJECT
@@ -83,17 +121,51 @@ export const projectRoutes = new Elysia({ prefix: "/api/projects" })
 
             await db.projectCollaborator.upsert({
                 where: { projectId_userId: { projectId: id, userId: body.userId } },
-                // Use the type directly to satisfy Prisma's Enum expectations
                 update: { role: body.role as "READ" | "WRITE" },
-                create: { projectId: id, userId: body.userId, role: body.role as "READ" | "WRITE" }
+                create: { projectId: id, userId: body.userId, role: body.role as "READ" | "WRITE" },
             });
 
             return { success: true };
-        }, { 
-            // RESTRICT THE API TO ONLY ACCEPT YOUR PRISMA ENUM VALUES
-            body: t.Object({ 
-                userId: t.String(), 
-                role: t.Union([t.Literal("READ"), t.Literal("WRITE")]) 
-            }) 
+        }, {
+            body: t.Object({
+                userId: t.String(),
+                role: t.Union([t.Literal("READ"), t.Literal("WRITE")]),
+            }),
         })
     );
+
+// Migration: encrypt all unencrypted projects on server startup
+export async function migrateUnencryptedProjects(): Promise<number> {
+    const unencrypted = await db.project.findMany({
+        where: { encrypted: false },
+        select: { id: true, data: true },
+    });
+
+    if (unencrypted.length === 0) return 0;
+
+    console.log(`[crypto] Migrating ${unencrypted.length} unencrypted project(s)...`);
+
+    let migrated = 0;
+    for (const project of unencrypted) {
+        try {
+            const { encryptedData, encryptedDEK, dataIV, deKIV } = encryptProjectData(project.data);
+
+            await db.project.update({
+                where: { id: project.id },
+                data: {
+                    data: encryptedData as any,
+                    dataKey: encryptedDEK,
+                    dataIV,
+                    deKIV,
+                    encrypted: true,
+                },
+            });
+            migrated++;
+        } catch (err) {
+            console.error(`[crypto] Failed to migrate project ${project.id}:`, err);
+        }
+    }
+
+    console.log(`[crypto] Migration complete: ${migrated}/${unencrypted.length} project(s) encrypted.`);
+    return migrated;
+}

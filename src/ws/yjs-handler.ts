@@ -5,6 +5,7 @@ import * as awarenessProtocol from 'y-protocols/awareness';
 import * as encoding from 'lib0/encoding';
 import * as decoding from 'lib0/decoding';
 import { db } from '../db/client';
+import { decryptProjectData, encryptProjectData } from '../crypto';
 
 const MESSAGE_SYNC = 0;
 const MESSAGE_AWARENESS = 1;
@@ -32,13 +33,24 @@ export async function getProjectDoc(projectId: string) {
         const project = await db.project.findUnique({ where: { id: projectId } });
         if (project) {
             if (project.yjsState) {
-
                 Y.applyUpdate(doc, project.yjsState);
             } else if (project.data) {
+                let projectData: Record<string, unknown>;
+
+                if (project.encrypted && project.dataKey && project.dataIV && project.deKIV) {
+                    projectData = decryptProjectData(
+                        project.data as string,
+                        project.dataKey,
+                        project.dataIV,
+                        project.deKIV
+                    ) as Record<string, unknown>;
+                } else {
+                    projectData = project.data as Record<string, unknown>;
+                }
 
                 const state = doc.getMap('state');
                 doc.transact(() => {
-                    for (const [key, value] of Object.entries(project.data as Record<string, unknown>)) {
+                    for (const [key, value] of Object.entries(projectData)) {
                         state.set(key, value);
                     }
                 });
@@ -102,18 +114,40 @@ export async function getProjectDoc(projectId: string) {
 }
 
 const saveTimeouts = new Map<string, any>();
-function debounceSave(projectId: string, doc: Y.Doc) {
+async function debounceSave(projectId: string, doc: Y.Doc) {
     if (saveTimeouts.has(projectId)) clearTimeout(saveTimeouts.get(projectId));
     saveTimeouts.set(projectId, setTimeout(async () => {
-        await db.project.update({
-            where: { id: projectId },
-            data: {
-                yjsState: Buffer.from(Y.encodeStateAsUpdate(doc)),
-                data: doc.getMap('state').toJSON(),
+        try {
+            const project = await db.project.findUnique({ where: { id: projectId } });
+            const yjsUpdate = Buffer.from(Y.encodeStateAsUpdate(doc));
+            const dataJson = doc.getMap('state').toJSON();
+
+            if (project?.encrypted) {
+                const { encryptedData, encryptedDEK, dataIV, deKIV } = encryptProjectData(dataJson);
+                await db.project.update({
+                    where: { id: projectId },
+                    data: {
+                        yjsState: yjsUpdate,
+                        data: encryptedData as any,
+                        dataKey: encryptedDEK,
+                        dataIV,
+                        deKIV,
+                    }
+                });
+            } else {
+                await db.project.update({
+                    where: { id: projectId },
+                    data: {
+                        yjsState: yjsUpdate,
+                        data: dataJson as any,
+                    }
+                });
             }
-        });
+            console.log(`💾 Project ${projectId} saved`);
+        } catch (err) {
+            console.error(`[yjs] Failed to save project ${projectId}:`, err);
+        }
         saveTimeouts.delete(projectId);
-        console.log(`💾 Project ${projectId} saved`);
     }, 5000));
 }
 
@@ -156,7 +190,6 @@ export const yjsSocketHandler = {
 
         if (messageType === MESSAGE_SYNC) {
             encoding.writeVarUint(encoder, MESSAGE_SYNC);
-            // ws is the transactionOrigin so the update listener skips echoing to this sender.
             sync.readSyncMessage(decoder, encoder, doc, ws);
             if (encoding.length(encoder) > 1) ws.send(Buffer.from(encoding.toUint8Array(encoder)));
         } else if (messageType === MESSAGE_AWARENESS) {

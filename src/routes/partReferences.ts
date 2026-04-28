@@ -2,6 +2,14 @@
 import { Elysia, t } from "elysia";
 import { db } from "../db/client";
 import { authPlugin } from "../auth/plugin";
+import { encryptPartDescription, decryptPartDescription } from "../crypto";
+
+function decryptPart(part: any) {
+    return {
+        ...part,
+        description: decryptPartDescription(part.description),
+    };
+}
 
 export const partReferenceRoutes = new Elysia({ prefix: "/api/part-references" })
     .use(authPlugin)
@@ -16,9 +24,9 @@ export const partReferenceRoutes = new Elysia({ prefix: "/api/part-references" }
 
         .get("/", async () => {
             const parts = await db.partReference.findMany({
-                orderBy: { componentNumber: "asc" }
+                orderBy: { componentNumber: "asc" },
             });
-            return { success: true, parts };
+            return { success: true, parts: parts.map(decryptPart) };
         })
 
         .get("/search", async ({ query: { q } }) => {
@@ -26,22 +34,22 @@ export const partReferenceRoutes = new Elysia({ prefix: "/api/part-references" }
             const parts = await db.partReference.findMany({
                 where: { componentNumber: { contains: q, mode: "insensitive" } },
                 take: 50,
-                orderBy: { componentNumber: "asc" }
+                orderBy: { componentNumber: "asc" },
             });
-            return { success: true, parts };
+            return { success: true, parts: parts.map(decryptPart) };
         }, {
-            query: t.Object({ q: t.String() })
+            query: t.Object({ q: t.String() }),
         })
 
         .get("/lookup", async ({ query: { numbers } }) => {
-            const list = numbers.split(",").map(s => s.trim()).filter(Boolean);
+            const list = numbers.split(",").map((s) => s.trim()).filter(Boolean);
             if (list.length === 0) return { success: true, parts: [] };
             const parts = await db.partReference.findMany({
-                where: { componentNumber: { in: list } }
+                where: { componentNumber: { in: list } },
             });
-            return { success: true, parts };
+            return { success: true, parts: parts.map(decryptPart) };
         }, {
-            query: t.Object({ numbers: t.String() })
+            query: t.Object({ numbers: t.String() }),
         })
 
         .post("/", async ({ body, user, set }) => {
@@ -52,18 +60,19 @@ export const partReferenceRoutes = new Elysia({ prefix: "/api/part-references" }
                     set.status = 400;
                     return { success: false, message: "componentNumber required" };
                 }
+                const encryptedDesc = encryptPartDescription(description);
                 const part = await db.partReference.upsert({
                     where: { componentNumber: trimmed },
-                    update: { description, weight, updatedById: user!.id },
+                    update: { description: encryptedDesc, weight, updatedById: user!.id },
                     create: {
                         componentNumber: trimmed,
-                        description,
+                        description: encryptedDesc,
                         weight,
                         createdById: user!.id,
-                        updatedById: user!.id
-                    }
+                        updatedById: user!.id,
+                    },
                 });
-                return { success: true, part };
+                return { success: true, part: decryptPart(part) };
             } catch (err: any) {
                 console.error("[partReferences POST] failed:", err);
                 set.status = 500;
@@ -73,8 +82,8 @@ export const partReferenceRoutes = new Elysia({ prefix: "/api/part-references" }
             body: t.Object({
                 componentNumber: t.String(),
                 description: t.String(),
-                weight: t.Number()
-            })
+                weight: t.Number(),
+            }),
         })
 
         .patch("/:id", async ({ params: { id }, body, user, set }) => {
@@ -84,11 +93,18 @@ export const partReferenceRoutes = new Elysia({ prefix: "/api/part-references" }
                     set.status = 404;
                     return { success: false, message: "Not found" };
                 }
+                const updateData: any = { updatedById: user!.id };
+                if (body.description !== undefined) {
+                    updateData.description = encryptPartDescription(body.description);
+                }
+                if (body.weight !== undefined) {
+                    updateData.weight = body.weight;
+                }
                 const part = await db.partReference.update({
                     where: { id },
-                    data: { ...body, updatedById: user!.id }
+                    data: updateData,
                 });
-                return { success: true, part };
+                return { success: true, part: decryptPart(part) };
             } catch (err: any) {
                 console.error("[partReferences PATCH] failed:", err);
                 set.status = 500;
@@ -97,8 +113,8 @@ export const partReferenceRoutes = new Elysia({ prefix: "/api/part-references" }
         }, {
             body: t.Object({
                 description: t.Optional(t.String()),
-                weight: t.Optional(t.Number())
-            })
+                weight: t.Optional(t.Number()),
+            }),
         })
 
         .delete("/:id", async ({ params: { id }, set }) => {

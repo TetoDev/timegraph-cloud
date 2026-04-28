@@ -20,4 +20,4 @@ RUN DATABASE_URL="postgresql://dummy" bunx prisma generate
 EXPOSE 3000
 
 # Start script: Run migrations, then start the server
-CMD sh -c "bunx prisma db push && bun src/index.ts"
+CMD sh -c "bunx prisma generate && bunx prisma db push && bun src/index.ts"
