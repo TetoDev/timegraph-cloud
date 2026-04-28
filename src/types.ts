@@ -69,6 +69,9 @@ export interface Process {
     cycleBehavior: CycleBehavior;
     isValueAdded?: boolean;
     references?: Record<string, number>;
+    isPeriodic: boolean;
+    periodicInterval: number;
+    periodicUnit: "cycles" | "days";
 }
 
 export interface TimeBlock {

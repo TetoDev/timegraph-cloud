@@ -6,6 +6,7 @@ import { authRoutes } from "./routes/auth";
 import { projectRoutes } from "./routes/projects";
 import { userRoutes } from "./routes/users";
 import { yjsSocketHandler } from "./ws/yjs-handler";
+import { partReferenceRoutes } from "./routes/partReferences";
 import { db } from "./db/client";
 
 const app = new Elysia()
@@ -47,6 +48,7 @@ const app = new Elysia()
   .use(authRoutes)
   .use(projectRoutes)
   .use(userRoutes)
+  .use(partReferenceRoutes)
   
   .listen(3000);
 
