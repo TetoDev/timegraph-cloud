@@ -16,6 +16,10 @@ model User {
   email    String    @unique
   password String    
 
+  emailVerified         Boolean   @default(false)
+  verificationCode      String?
+  verificationExpiresAt DateTime?
+
   totpSecret   String?
   totpEnabled  Boolean @default(false)
 

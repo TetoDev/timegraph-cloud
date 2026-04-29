@@ -1,7 +1,3 @@
-// src/config/secrets.ts
-// Reads Docker Secrets from /run/secrets/<name>, falls back to process.env
-// Works transparently in both Docker (production) and local dev (via .env)
-
 import { readFile } from "node:fs/promises";
 
 export async function readSecret(secretName: string, envVarName: string): Promise<string> {
@@ -26,5 +22,46 @@ export async function getDatabaseUrl(): Promise<string> {
       throw new Error("DATABASE_URL not set and Docker Secrets not available");
     }
     return process.env.DATABASE_URL;
+  }
+}
+
+export interface SmtpConfig {
+  host: string;
+  port: number;
+  user: string;
+  pass: string;
+  from: string;
+}
+
+export async function getSmtpConfig(): Promise<SmtpConfig> {
+  try {
+    const raw = await readFile("/run/secrets/smtp_credentials", "utf8");
+    const parsed: Record<string, string> = {};
+    for (const line of raw.split("\n")) {
+      const eq = line.indexOf("=");
+      if (eq !== -1) {
+        parsed[line.slice(0, eq).trim()] = line.slice(eq + 1).trim();
+      }
+    }
+    return {
+      host: process.env.SMTP_HOST || parsed.SMTP_HOST || "ssl0.ovh.net",
+      port: parseInt(process.env.SMTP_PORT || parsed.SMTP_PORT || "587", 10),
+      user: parsed.SMTP_USER || process.env.SMTP_USER || "",
+      pass: parsed.SMTP_PASS || process.env.SMTP_PASS || "",
+      from: process.env.SMTP_FROM || parsed.SMTP_FROM || "contact@insa-racing.fr",
+    };
+  } catch {
+    const user = process.env.SMTP_USER || "";
+    const pass = process.env.SMTP_PASS || "";
+    if (!user || !pass) {
+      throw new Error("SMTP credentials not set (env vars SMTP_USER/SMTP_PASS or docker secret smtp_credentials required)");
+    }
+    return {
+      host: process.env.SMTP_HOST || "ssl0.ovh.net",
+      port: parseInt(process.env.SMTP_PORT || "587", 10),
+      user,
+      pass,
+      from: process.env.SMTP_FROM || "contact@insa-racing.fr",
+    };
   }
 }
