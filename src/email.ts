@@ -8,18 +8,22 @@ async function getTransport(): Promise<Transporter> {
   if (transport && transportVerified) return transport;
 
   const config = await getSmtpConfig();
-  console.log(`[email] Creating SMTP transport: ${config.host}:${config.port} (secure: true) as ${config.user}`);
+  console.log(`[email] Creating SMTP transport: ${config.host}:${config.port} as ${config.user}`);
 
   transport = createTransport({
     host: config.host,
     port: config.port,
-    secure: true,
+    secure: false,
+    requireTLS: true,
     pool: true,
     maxConnections: 3,
     auth: { user: config.user, pass: config.pass },
     connectionTimeout: 15000,
     greetingTimeout: 15000,
     socketTimeout: 30000,
+    tls: {
+      rejectUnauthorized: true,
+    },
     logger: true,
     debug: true,
   });
