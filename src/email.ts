@@ -4,11 +4,15 @@ import { getSmtpConfig } from "./config/secrets";
 export async function sendVerificationEmail(to: string, code: string): Promise<void> {
   const config = await getSmtpConfig();
 
+  console.log(`[email] Connecting to ${config.host}:${config.port} (secure: true) as ${config.user}`);
+
   const transport = createTransport({
     host: config.host,
     port: config.port,
-    secure: config.port === 465,
+    secure: true,
     auth: { user: config.user, pass: config.pass },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
   });
 
   await transport.sendMail({
