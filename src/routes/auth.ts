@@ -45,11 +45,12 @@ async function sendCodeToUser(userId: string, email: string): Promise<void> {
       verificationExpiresAt: new Date(Date.now() + CODE_EXPIRY_MS),
     },
   });
-  try {
-    await sendVerificationEmail(email, code);
-  } catch (e) {
+  // Fire-and-forget so a slow/dead SMTP server can't block the HTTP response.
+  // Errors get logged; the verification code is already persisted in the DB
+  // so the resend endpoint can re-attempt delivery.
+  sendVerificationEmail(email, code).catch((e) => {
     console.error("[email] Failed to send verification to", email, e);
-  }
+  });
 }
 
 export const authRoutes = new Elysia({ prefix: "/api/auth" })
