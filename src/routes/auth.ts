@@ -45,7 +45,11 @@ async function sendCodeToUser(userId: string, email: string): Promise<void> {
       verificationExpiresAt: new Date(Date.now() + CODE_EXPIRY_MS),
     },
   });
-  await sendVerificationEmail(email, code);
+  try {
+    await sendVerificationEmail(email, code);
+  } catch (e) {
+    console.error("[email] Failed to send verification to", email, e);
+  }
 }
 
 export const authRoutes = new Elysia({ prefix: "/api/auth" })
