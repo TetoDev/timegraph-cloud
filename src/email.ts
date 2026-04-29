@@ -2,9 +2,10 @@ import { createTransport, Transporter } from "nodemailer";
 import { getSmtpConfig } from "./config/secrets";
 
 let transport: Transporter | null = null;
+let transportVerified = false;
 
 async function getTransport(): Promise<Transporter> {
-  if (transport) return transport;
+  if (transport && transportVerified) return transport;
 
   const config = await getSmtpConfig();
   console.log(`[email] Creating SMTP transport: ${config.host}:${config.port} (secure: true) as ${config.user}`);
@@ -19,7 +20,20 @@ async function getTransport(): Promise<Transporter> {
     connectionTimeout: 15000,
     greetingTimeout: 15000,
     socketTimeout: 30000,
+    logger: true,
+    debug: true,
   });
+
+  try {
+    await transport.verify();
+    console.log("[email] SMTP transport verified — connection OK");
+    transportVerified = true;
+  } catch (e) {
+    console.error("[email] SMTP transport verification FAILED:", e);
+    transport = null;
+    transportVerified = false;
+    throw e;
+  }
 
   return transport;
 }
@@ -28,8 +42,8 @@ export async function sendVerificationEmail(to: string, code: string): Promise<v
   const t = await getTransport();
   const config = await getSmtpConfig();
 
-  await t.sendMail({
-    from: config.from,
+  const info = await t.sendMail({
+    from: `"PLPP Verification" <${config.from}>`,
     to,
     subject: "PLPP - Your Verification Code",
     html: `<html><body style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;">
@@ -43,5 +57,5 @@ export async function sendVerificationEmail(to: string, code: string): Promise<v
     </body></html>`,
   });
 
-  console.log(`[email] Verification code sent to ${to}`);
+  console.log(`[email] Sent to ${to} — response: ${info.response}, messageId: ${info.messageId}`);
 }
