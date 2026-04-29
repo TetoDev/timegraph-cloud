@@ -4,10 +4,10 @@ import { db } from "../db/client";
 import { authPlugin } from "../auth/plugin";
 import { encryptPartDescription, decryptPartDescription } from "../crypto";
 
-function decryptPart(part: any) {
+async function decryptPart(part: any) {
     return {
         ...part,
-        description: decryptPartDescription(part.description),
+        description: await decryptPartDescription(part.description),
     };
 }
 
@@ -26,7 +26,7 @@ export const partReferenceRoutes = new Elysia({ prefix: "/api/part-references" }
             const parts = await db.partReference.findMany({
                 orderBy: { componentNumber: "asc" },
             });
-            return { success: true, parts: parts.map(decryptPart) };
+            return { success: true, parts: await Promise.all(parts.map(decryptPart)) };
         })
 
         .get("/search", async ({ query: { q } }) => {
@@ -36,7 +36,7 @@ export const partReferenceRoutes = new Elysia({ prefix: "/api/part-references" }
                 take: 50,
                 orderBy: { componentNumber: "asc" },
             });
-            return { success: true, parts: parts.map(decryptPart) };
+            return { success: true, parts: await Promise.all(parts.map(decryptPart)) };
         }, {
             query: t.Object({ q: t.String() }),
         })
@@ -47,7 +47,7 @@ export const partReferenceRoutes = new Elysia({ prefix: "/api/part-references" }
             const parts = await db.partReference.findMany({
                 where: { componentNumber: { in: list } },
             });
-            return { success: true, parts: parts.map(decryptPart) };
+            return { success: true, parts: await Promise.all(parts.map(decryptPart)) };
         }, {
             query: t.Object({ numbers: t.String() }),
         })
@@ -60,7 +60,7 @@ export const partReferenceRoutes = new Elysia({ prefix: "/api/part-references" }
                     set.status = 400;
                     return { success: false, message: "componentNumber required" };
                 }
-                const encryptedDesc = encryptPartDescription(description);
+                const encryptedDesc = await encryptPartDescription(description);
                 const part = await db.partReference.upsert({
                     where: { componentNumber: trimmed },
                     update: { description: encryptedDesc, weight, updatedById: user!.id },
@@ -72,7 +72,7 @@ export const partReferenceRoutes = new Elysia({ prefix: "/api/part-references" }
                         updatedById: user!.id,
                     },
                 });
-                return { success: true, part: decryptPart(part) };
+                return { success: true, part: await decryptPart(part) };
             } catch (err: any) {
                 console.error("[partReferences POST] failed:", err);
                 set.status = 500;
@@ -95,7 +95,7 @@ export const partReferenceRoutes = new Elysia({ prefix: "/api/part-references" }
                 }
                 const updateData: any = { updatedById: user!.id };
                 if (body.description !== undefined) {
-                    updateData.description = encryptPartDescription(body.description);
+                    updateData.description = await encryptPartDescription(body.description);
                 }
                 if (body.weight !== undefined) {
                     updateData.weight = body.weight;
@@ -104,7 +104,7 @@ export const partReferenceRoutes = new Elysia({ prefix: "/api/part-references" }
                     where: { id },
                     data: updateData,
                 });
-                return { success: true, part: decryptPart(part) };
+                return { success: true, part: await decryptPart(part) };
             } catch (err: any) {
                 console.error("[partReferences PATCH] failed:", err);
                 set.status = 500;

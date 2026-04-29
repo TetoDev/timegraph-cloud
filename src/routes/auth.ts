@@ -1,6 +1,7 @@
 // src/routes/auth.ts
 import { Elysia, t } from "elysia";
 import { db } from "../db/client";
+import { authPlugin } from "../auth/plugin";
 import { createSession, invalidateSession, validateSession } from "../auth/session";
 import {
   generateTOTPSecret,
@@ -31,9 +32,17 @@ setInterval(() => {
 }, 2 * 60 * 1000);
 
 export const authRoutes = new Elysia({ prefix: "/api/auth" })
+  .use(authPlugin)
 
   .post("/register", async ({ body, set, cookie: { auth_session } }) => {
     const { username, email, password } = body;
+
+    const limit = checkRateLimit(`register-${email}`, 3, 15 * 60 * 1000);
+    if (!limit.allowed) {
+      set.status = 429;
+      return { success: false, message: "Too many attempts. Try again later." };
+    }
+
     const hashedPassword = await Bun.password.hash(password);
 
     try {
@@ -47,6 +56,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
         value: session.id,
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
         maxAge: 60 * 60 * 24 * 30,
         path: "/",
       });
@@ -58,9 +68,9 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
     }
   }, {
     body: t.Object({
-      username: t.String(),
-      email: t.String(),
-      password: t.String(),
+      username: t.String({ minLength: 3, maxLength: 64 }),
+      email: t.String({ format: "email", maxLength: 255 }),
+      password: t.String({ minLength: 8, maxLength: 128 }),
     }),
     cookie: t.Object({
       auth_session: t.Optional(t.String()),
@@ -69,6 +79,12 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
 
   .post("/login", async ({ body, set, cookie: { auth_session } }) => {
     const { email, password } = body;
+
+    const limit = checkRateLimit(`login-${email}`, 10, 15 * 60 * 1000);
+    if (!limit.allowed) {
+      set.status = 429;
+      return { success: false, message: "Too many attempts. Try again later." };
+    }
 
     const user = await db.user.findUnique({ where: { email } });
     if (!user) {
@@ -104,6 +120,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
       value: session.id,
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
       maxAge: 60 * 60 * 24 * 30,
       path: "/",
     });
@@ -111,8 +128,8 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
     return { success: true, user: { id: user.id, username: user.username } };
   }, {
     body: t.Object({
-      email: t.String(),
-      password: t.String(),
+      email: t.String({ maxLength: 255 }),
+      password: t.String({ minLength: 1, maxLength: 128 }),
     }),
     cookie: t.Object({
       auth_session: t.Optional(t.String()),
@@ -154,6 +171,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
       value: session.id,
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
       maxAge: 60 * 60 * 24 * 30,
       path: "/",
     });

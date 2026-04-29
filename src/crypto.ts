@@ -1,5 +1,6 @@
 // src/crypto.ts
 import { createCipheriv, createDecipheriv, randomBytes } from "crypto";
+import { readSecret } from "./config/secrets";
 
 const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 12;
@@ -8,14 +9,10 @@ const KEY_LENGTH = 32;
 
 let cachedMasterKey: Buffer | null = null;
 
-export function getMasterKey(): Buffer {
+export async function getMasterKey(): Promise<Buffer> {
   if (cachedMasterKey) return cachedMasterKey;
 
-  const envKey = process.env.ENCRYPTION_KEY;
-  if (!envKey) {
-    throw new Error("ENCRYPTION_KEY environment variable is not set");
-  }
-
+  const envKey = await readSecret("encryption_key", "ENCRYPTION_KEY");
   const key = Buffer.from(envKey, "hex");
   if (key.length !== KEY_LENGTH) {
     throw new Error(
@@ -41,13 +38,13 @@ export function decrypt(ciphertext: Buffer, iv: Buffer, authTag: Buffer, key: Bu
   return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
 }
 
-export function encryptProjectData(data: object): {
+export async function encryptProjectData(data: object): Promise<{
   encryptedData: string;
   encryptedDEK: string;
   dataIV: string;
   deKIV: string;
-} {
-  const masterKey = getMasterKey();
+}> {
+  const masterKey = await getMasterKey();
   const dek = randomBytes(KEY_LENGTH);
 
   const dataPlaintext = Buffer.from(JSON.stringify(data));
@@ -67,13 +64,13 @@ export function encryptProjectData(data: object): {
   };
 }
 
-export function decryptProjectData(
+export async function decryptProjectData(
   encryptedData: string,
   encryptedDEK: string,
   dataIV: string,
   deKIV: string
-): object {
-  const masterKey = getMasterKey();
+): Promise<object> {
+  const masterKey = await getMasterKey();
 
   const dataWithAuth = Buffer.from(encryptedData, "base64");
   const dekWithAuth = Buffer.from(encryptedDEK, "base64");
@@ -95,17 +92,17 @@ export function decryptProjectData(
   return JSON.parse(plaintext.toString());
 }
 
-export function encryptPartDescription(text: string): string {
+export async function encryptPartDescription(text: string): Promise<string> {
   if (!text) return "";
-  const masterKey = getMasterKey();
+  const masterKey = await getMasterKey();
   const plaintext = Buffer.from(text, "utf8");
   const { ciphertext, iv, authTag } = encrypt(plaintext, masterKey);
   return Buffer.concat([iv, authTag, ciphertext]).toString("base64");
 }
 
-export function decryptPartDescription(encrypted: string): string {
+export async function decryptPartDescription(encrypted: string): Promise<string> {
   if (!encrypted) return "";
-  const masterKey = getMasterKey();
+  const masterKey = await getMasterKey();
   const buf = Buffer.from(encrypted, "base64");
 
   const iv = buf.slice(0, IV_LENGTH);

@@ -38,7 +38,7 @@ export async function getProjectDoc(projectId: string) {
                 let projectData: Record<string, unknown>;
 
                 if (project.encrypted && project.dataKey && project.dataIV && project.deKIV) {
-                    projectData = decryptProjectData(
+                    projectData = await decryptProjectData(
                         project.data as string,
                         project.dataKey,
                         project.dataIV,
@@ -123,7 +123,7 @@ async function debounceSave(projectId: string, doc: Y.Doc) {
             const dataJson = doc.getMap('state').toJSON();
 
             if (project?.encrypted) {
-                const { encryptedData, encryptedDEK, dataIV, deKIV } = encryptProjectData(dataJson);
+                const { encryptedData, encryptedDEK, dataIV, deKIV } = await encryptProjectData(dataJson);
                 await db.project.update({
                     where: { id: projectId },
                     data: {

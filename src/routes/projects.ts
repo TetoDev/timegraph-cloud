@@ -18,7 +18,7 @@ export const projectRoutes = new Elysia({ prefix: "/api/projects" })
         // 1. CREATE NEW CLOUD PROJECT
         .post("/", async ({ body, user }) => {
             const { name, data } = body;
-            const { encryptedData, encryptedDEK, dataIV, deKIV } = encryptProjectData(data);
+            const { encryptedData, encryptedDEK, dataIV, deKIV } = await encryptProjectData(data);
 
             const project = await db.project.create({
                 data: {
@@ -75,7 +75,7 @@ export const projectRoutes = new Elysia({ prefix: "/api/projects" })
 
             if (project.encrypted && project.dataKey && project.dataIV && project.deKIV) {
                 try {
-                    decryptedData = decryptProjectData(
+                    decryptedData = await decryptProjectData(
                         project.data as string,
                         project.dataKey,
                         project.dataIV,
@@ -148,7 +148,7 @@ export async function migrateUnencryptedProjects(): Promise<number> {
     let migrated = 0;
     for (const project of unencrypted) {
         try {
-            const { encryptedData, encryptedDEK, dataIV, deKIV } = encryptProjectData(project.data);
+            const { encryptedData, encryptedDEK, dataIV, deKIV } = await encryptProjectData(project.data);
 
             await db.project.update({
                 where: { id: project.id },

@@ -1,6 +1,7 @@
 // src/auth/totp.ts
 import { TOTP } from "otpauth";
 import QRCode from "qrcode";
+import { randomBytes } from "crypto";
 
 const ISSUER = "PLPP";
 
@@ -47,10 +48,11 @@ export function verifyTOTP(secret: string, token: string): boolean {
 export function generateRecoveryCodes(count: number = 10): string[] {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   const codes: string[] = [];
+  const buf = randomBytes(count * 8);
   for (let i = 0; i < count; i++) {
     let code = "";
     for (let j = 0; j < 8; j++) {
-      code += chars[Math.floor(Math.random() * chars.length)];
+      code += chars[buf[i * 8 + j] % chars.length];
     }
     codes.push(code);
   }

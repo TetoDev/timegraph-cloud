@@ -1,7 +1,7 @@
 // src/index.ts
 import { Elysia, t } from "elysia";
 import { cors } from "@elysiajs/cors";
-import { authPlugin } from "./auth/plugin"; // Our unified auth logic
+import { authPlugin } from "./auth/plugin";
 import { authRoutes } from "./routes/auth";
 import { projectRoutes, migrateUnencryptedProjects } from "./routes/projects";
 import { userRoutes } from "./routes/users";
@@ -12,7 +12,7 @@ import { getMasterKey } from "./crypto";
 
 // Validate encryption key at startup
 try {
-  getMasterKey();
+  await getMasterKey();
   console.log("[crypto] Encryption key loaded successfully.");
 } catch (err: any) {
   console.error("[crypto] FATAL:", err.message);
@@ -27,21 +27,20 @@ try {
 }
 
 const app = new Elysia()
-  .use(cors({ 
+  .use(cors({
+    origin: process.env.ALLOWED_ORIGINS
+      ? process.env.ALLOWED_ORIGINS.split(",")
+      : ["https://app.insa-racing.fr"],
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization']
+    allowedHeaders: ["Content-Type", "Authorization"],
   }))
-  
 
   .use(authPlugin)
 
-
   .ws("/ws/projects/:projectId", {
       async beforeHandle({ user, params: { projectId }, set }) {
-          // If the plugin didn't find a user, block the connection
           if (!user) return (set.status = 401);
-          
-          // Check project permissions in DB
+
           const project = await db.project.findFirst({
               where: {
                   id: projectId,
@@ -55,8 +54,8 @@ const app = new Elysia()
           if (!project) return (set.status = 403);
       },
 
-      ...yjsSocketHandler, 
-      
+      ...yjsSocketHandler,
+
       params: t.Object({
           projectId: t.String()
       })
@@ -66,7 +65,7 @@ const app = new Elysia()
   .use(projectRoutes)
   .use(userRoutes)
   .use(partReferenceRoutes)
-  
+
   .listen(3000);
 
 console.log(`| Cloud Orchestrator running at ${app.server?.hostname}:${app.server?.port}`);

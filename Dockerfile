@@ -13,6 +13,9 @@ RUN bun install
 # Copy the rest of the source code
 COPY . .
 
+# Remove any .env files to prevent secrets leaking in image layers
+RUN rm -f .env .env.*
+
 # Generate the Prisma Client using a dummy URL just to satisfy the build step
 RUN DATABASE_URL="postgresql://dummy" bunx prisma generate
 
