@@ -1,21 +1,34 @@
-import { createTransport } from "nodemailer";
+import { createTransport, Transporter } from "nodemailer";
 import { getSmtpConfig } from "./config/secrets";
 
-export async function sendVerificationEmail(to: string, code: string): Promise<void> {
+let transport: Transporter | null = null;
+
+async function getTransport(): Promise<Transporter> {
+  if (transport) return transport;
+
   const config = await getSmtpConfig();
+  console.log(`[email] Creating SMTP transport: ${config.host}:${config.port} (secure: true) as ${config.user}`);
 
-  console.log(`[email] Connecting to ${config.host}:${config.port} (secure: true) as ${config.user}`);
-
-  const transport = createTransport({
+  transport = createTransport({
     host: config.host,
     port: config.port,
     secure: true,
+    pool: true,
+    maxConnections: 3,
     auth: { user: config.user, pass: config.pass },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 30000,
   });
 
-  await transport.sendMail({
+  return transport;
+}
+
+export async function sendVerificationEmail(to: string, code: string): Promise<void> {
+  const t = await getTransport();
+  const config = await getSmtpConfig();
+
+  await t.sendMail({
     from: config.from,
     to,
     subject: "PLPP - Your Verification Code",
