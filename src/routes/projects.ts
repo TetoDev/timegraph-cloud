@@ -132,6 +132,40 @@ export const projectRoutes = new Elysia({ prefix: "/api/projects" })
                 role: t.Union([t.Literal("READ"), t.Literal("WRITE")]),
             }),
         })
+
+        // 7. LIST COLLABORATORS
+        .get("/:id/collaborators", async ({ params: { id }, user, set }) => {
+            const project = await db.project.findUnique({ where: { id } });
+            if (!project || project.ownerId !== user!.id) return (set.status = 403, { success: false });
+
+            const collabs = await db.projectCollaborator.findMany({
+                where: { projectId: id },
+                include: { user: { select: { id: true, username: true, email: true } } },
+                orderBy: { user: { username: "asc" } },
+            });
+
+            return {
+                success: true,
+                collaborators: collabs.map((c) => ({
+                    userId: c.user.id,
+                    username: c.user.username,
+                    email: c.user.email,
+                    role: c.role,
+                })),
+            };
+        })
+
+        // 8. REMOVE COLLABORATOR
+        .delete("/:id/collaborators/:userId", async ({ params: { id, userId }, user, set }) => {
+            const project = await db.project.findUnique({ where: { id } });
+            if (!project || project.ownerId !== user!.id) return (set.status = 403, { success: false });
+
+            await db.projectCollaborator.delete({
+                where: { projectId_userId: { projectId: id, userId } },
+            });
+
+            return { success: true };
+        })
     );
 
 // Migration: encrypt all unencrypted projects on server startup
