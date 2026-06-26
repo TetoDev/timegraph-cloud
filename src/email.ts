@@ -8,21 +8,29 @@ async function getTransport(): Promise<Transporter> {
   if (transport && transportVerified) return transport;
 
   const config = await getSmtpConfig();
-  console.log(`[email] Creating SMTP transport: ${config.host}:${config.port} as ${config.user}`);
+
+  // Auto-detect Mailpit (local testing) — skip TLS and auth
+  const isMailpit = config.host.includes("mailpit") || config.port === 1025;
+
+  if (isMailpit) {
+    console.log(`[email] Mailpit detected (${config.host}:${config.port}) — using plain SMTP, no auth`);
+  } else {
+    console.log(`[email] Creating SMTP transport: ${config.host}:${config.port} as ${config.user}`);
+  }
 
   transport = createTransport({
     host: config.host,
     port: config.port,
     secure: false,
-    requireTLS: true,
+    requireTLS: !isMailpit,
     pool: true,
     maxConnections: 3,
-    auth: { user: config.user, pass: config.pass },
+    ...(isMailpit ? {} : { auth: { user: config.user, pass: config.pass } }),
     connectionTimeout: 15000,
     greetingTimeout: 15000,
     socketTimeout: 30000,
     tls: {
-      rejectUnauthorized: true,
+      rejectUnauthorized: !isMailpit,
     },
     logger: true,
     debug: true,

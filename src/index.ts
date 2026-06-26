@@ -7,6 +7,7 @@ import { projectRoutes, migrateUnencryptedProjects } from "./routes/projects";
 import { userRoutes } from "./routes/users";
 import { yjsSocketHandler } from "./ws/yjs-handler";
 import { partReferenceRoutes } from "./routes/partReferences";
+import { sharedBomListRoutes } from "./routes/sharedBomLists";
 import { db } from "./db/client";
 import { getMasterKey } from "./crypto";
 
@@ -65,6 +66,7 @@ const app = new Elysia()
   .use(projectRoutes)
   .use(userRoutes)
   .use(partReferenceRoutes)
+  .use(sharedBomListRoutes)
 
   .listen({ hostname: "0.0.0.0", port: 3000 });
 

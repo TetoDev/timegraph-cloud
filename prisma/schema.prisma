@@ -32,6 +32,8 @@ model User {
 
   createdPartRefs  PartReference[]       @relation("PartRefCreatedBy")
   updatedPartRefs  PartReference[]       @relation("PartRefUpdatedBy")
+  createdBomLists  SharedBomList[]        @relation("BomListCreatedBy")
+  updatedBomLists  SharedBomList[]        @relation("BomListUpdatedBy")
 
   recoveryCodes RecoveryCode[]
   resetTokens   PasswordResetToken[]
@@ -145,4 +147,20 @@ model PartReference {
   updatedAt       DateTime @updatedAt
 
   @@index([componentNumber])
+}
+
+model SharedBomList {
+  id         String   @id @default(uuid())
+  name       String
+  partNumber String   @default("")
+  drawing    String   @default("")
+  items      String                     // JSON-encrypted BomItem[]
+
+  createdById String?
+  createdBy   User?    @relation("BomListCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedById String?
+  updatedBy   User?    @relation("BomListUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

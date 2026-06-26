@@ -51,14 +51,22 @@ export async function getSmtpConfig(): Promise<SmtpConfig> {
       from: process.env.SMTP_FROM || parsed.SMTP_FROM || "contact@insa-racing.fr",
     };
   } catch {
+    const host = process.env.SMTP_HOST || "ssl0.ovh.net";
+    const port = parseInt(process.env.SMTP_PORT || "587", 10);
     const user = process.env.SMTP_USER || "";
     const pass = process.env.SMTP_PASS || "";
+
+    // Mailpit (local testing) doesn't require credentials
+    if (host.includes("mailpit") || port === 1025) {
+      return { host, port, user: "", pass: "", from: process.env.SMTP_FROM || "test@localhost.local" };
+    }
+
     if (!user || !pass) {
       throw new Error("SMTP credentials not set (env vars SMTP_USER/SMTP_PASS or docker secret smtp_credentials required)");
     }
     return {
-      host: process.env.SMTP_HOST || "ssl0.ovh.net",
-      port: parseInt(process.env.SMTP_PORT || "587", 10),
+      host,
+      port,
       user,
       pass,
       from: process.env.SMTP_FROM || "contact@insa-racing.fr",

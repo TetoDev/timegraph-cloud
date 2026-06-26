@@ -15,7 +15,6 @@ export const projectRoutes = new Elysia({ prefix: "/api/projects" })
         }
     }, (app) => app
 
-        // 1. CREATE NEW CLOUD PROJECT
         .post("/", async ({ body, user }) => {
             const { name, data } = body;
             const { encryptedData, encryptedDEK, dataIV, deKIV } = await encryptProjectData(data);
@@ -34,7 +33,6 @@ export const projectRoutes = new Elysia({ prefix: "/api/projects" })
             return { success: true, projectId: project.id };
         }, { body: t.Object({ name: t.String(), data: t.Any() }) })
 
-        // 2. LIST ALL PROJECTS
         .get("/", async ({ user }) => {
             const dbProjects = await db.project.findMany({
                 where: { OR: [{ ownerId: user!.id }, { collaborators: { some: { userId: user!.id } } }] },
@@ -59,7 +57,6 @@ export const projectRoutes = new Elysia({ prefix: "/api/projects" })
             };
         })
 
-        // 3. GET SINGLE PROJECT DATA
         .get("/:id", async ({ params: { id }, user, set }) => {
             const project = await db.project.findUnique({
                 where: { id },
@@ -96,7 +93,7 @@ export const projectRoutes = new Elysia({ prefix: "/api/projects" })
             };
         })
 
-        // 4. RENAME PROJECT
+
         .patch("/:id", async ({ params: { id }, body, user, set }) => {
             const project = await db.project.findUnique({ where: { id } });
             if (!project || project.ownerId !== user!.id) return (set.status = 403, { success: false });
@@ -105,7 +102,7 @@ export const projectRoutes = new Elysia({ prefix: "/api/projects" })
             return { success: true };
         }, { body: t.Object({ name: t.String() }) })
 
-        // 5. DELETE PROJECT
+
         .delete("/:id", async ({ params: { id }, user, set }) => {
             const project = await db.project.findUnique({ where: { id } });
             if (!project || project.ownerId !== user!.id) return (set.status = 403, { success: false });
@@ -114,7 +111,7 @@ export const projectRoutes = new Elysia({ prefix: "/api/projects" })
             return { success: true };
         })
 
-        // 6. SHARE PROJECT (Add Collaborator)
+
         .post("/:id/collaborators", async ({ params: { id }, body, user, set }) => {
             const project = await db.project.findUnique({ where: { id } });
             if (!project || project.ownerId !== user!.id) return (set.status = 403, { success: false });
@@ -133,7 +130,6 @@ export const projectRoutes = new Elysia({ prefix: "/api/projects" })
             }),
         })
 
-        // 7. LIST COLLABORATORS
         .get("/:id/collaborators", async ({ params: { id }, user, set }) => {
             const project = await db.project.findUnique({ where: { id } });
             if (!project || project.ownerId !== user!.id) return (set.status = 403, { success: false });
@@ -155,7 +151,6 @@ export const projectRoutes = new Elysia({ prefix: "/api/projects" })
             };
         })
 
-        // 8. REMOVE COLLABORATOR
         .delete("/:id/collaborators/:userId", async ({ params: { id, userId }, user, set }) => {
             const project = await db.project.findUnique({ where: { id } });
             if (!project || project.ownerId !== user!.id) return (set.status = 403, { success: false });
@@ -168,7 +163,6 @@ export const projectRoutes = new Elysia({ prefix: "/api/projects" })
         })
     );
 
-// Migration: encrypt all unencrypted projects on server startup
 export async function migrateUnencryptedProjects(): Promise<number> {
     const unencrypted = await db.project.findMany({
         where: { encrypted: false },
